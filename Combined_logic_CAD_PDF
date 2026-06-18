@@ -6,3 +6,40 @@ On Account - A002  - Retainer"	"Exclude - E030/E031, E040( FOR NOW)
 
 A002 - Should be hardcoded , for other go with * fo relevant materials"
 Combined logic		
+
+
+
+*--- Begin Fees / Disbursements / Retainer aggregation for new PDF -----
+DATA: lv_fees     TYPE p LENGTH 12 DECIMALS 2,
+      lv_disb     TYPE p LENGTH 12 DECIMALS 2,
+      lv_retainer TYPE p LENGTH 12 DECIMALS 2.
+
+* FEES = Time (T*) + Adjustment (B*) + ITB (E020)
+SELECT SUM( netamount ) FROM i_billingdocumentitembasic WITH PRIVILEGED ACCESS
+  WHERE billingdocument = @billingdoc-billingdocument
+    AND ( product LIKE 'T%' OR product LIKE 'B%' OR product = 'E020' )
+  INTO @lv_fees.
+
+* DISBURSEMENTS = expense materials (E*), excluding ITB + excluded E030/E031/E040
+SELECT SUM( netamount ) FROM i_billingdocumentitembasic WITH PRIVILEGED ACCESS
+  WHERE billingdocument = @billingdoc-billingdocument
+    AND product LIKE 'E%'
+    AND product NOT IN ( 'E020', 'E030', 'E031', 'E040' )
+  INTO @lv_disb.
+
+* RETAINER = On-account material A002 (hardcoded)
+SELECT SUM( netamount ) FROM i_billingdocumentitembasic WITH PRIVILEGED ACCESS
+  WHERE billingdocument = @billingdoc-billingdocument
+    AND product = 'A002'
+  INTO @lv_retainer.
+
+billingdoc_extension_out-yy1_fees_bdh      = lv_fees.
+billingdoc_extension_out-yy1_fees_bdhc     = billingdoc-transactioncurrency.
+billingdoc_extension_out-yy1_disb_bdh      = lv_disb.
+billingdoc_extension_out-yy1_disb_bdhc     = billingdoc-transactioncurrency.
+billingdoc_extension_out-yy1_retainer_bdh  = lv_retainer.
+billingdoc_extension_out-yy1_retainer_bdhc = billingdoc-transactioncurrency.
+
+cl_ble_trace_writer=>write_warning_message(
+  |Fees:{ lv_fees } Disb:{ lv_disb } Retainer:{ lv_retainer }| ).
+*--- End aggregation ---------------------------------------------------
